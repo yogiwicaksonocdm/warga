@@ -1,5 +1,7 @@
 'use client';
-
+import { auth, db } from '@/lib/firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { useRouter } from 'next/navigation';
 import React, { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
 import {
@@ -53,7 +55,24 @@ export default function DashboardWarga() {
   const [filterRT, setFilterRT] = useState('ALL');
   const [editingId, setEditingId] = useState(null);
   const [isFirebaseConfigured, setIsFirebaseConfigured] = useState(false);
+const [currentUser, setCurrentUser] = useState(null);
+const router = useRouter();
 
+useEffect(() => {
+  const unsubscribe = onAuthStateChanged(auth, (user) => {
+    if (!user) {
+      router.push('/login');
+    } else {
+      setCurrentUser(user);
+    }
+  });
+  return () => unsubscribe();
+}, [router]);
+
+const handleLogout = async () => {
+  await signOut(auth);
+  router.push('/login');
+};
   const [formData, setFormData] = useState({
     nik: '',
     noKK: '',
