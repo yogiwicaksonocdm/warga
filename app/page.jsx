@@ -1,9 +1,9 @@
 'use client';
+
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { useRouter } from 'next/navigation';
-import React, { useState, useEffect } from 'react';
-import { db } from '../lib/firebase';
 import {
   collection,
   addDoc,
@@ -48,6 +48,10 @@ const initialMockData = [
 ];
 
 export default function DashboardWarga() {
+  const [currentUser, setCurrentUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const router = useRouter();
+
   const [wargaList, setWargaList] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('list');
@@ -55,24 +59,7 @@ export default function DashboardWarga() {
   const [filterRT, setFilterRT] = useState('ALL');
   const [editingId, setEditingId] = useState(null);
   const [isFirebaseConfigured, setIsFirebaseConfigured] = useState(false);
-const [currentUser, setCurrentUser] = useState(null);
-const router = useRouter();
 
-useEffect(() => {
-  const unsubscribe = onAuthStateChanged(auth, (user) => {
-    if (!user) {
-      router.push('/login');
-    } else {
-      setCurrentUser(user);
-    }
-  });
-  return () => unsubscribe();
-}, [router]);
-
-const handleLogout = async () => {
-  await signOut(auth);
-  router.push('/login');
-};
   const [formData, setFormData] = useState({
     nik: '',
     noKK: '',
@@ -88,6 +75,20 @@ const handleLogout = async () => {
     alamat: '',
   });
 
+  // Proteksi Halaman & Cek Autentikasi
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        router.push('/login');
+      } else {
+        setCurrentUser(user);
+        setAuthLoading(false);
+      }
+    });
+    return () => unsubscribe();
+  }, [router]);
+
+  // Ambil Data Firestore
   useEffect(() => {
     const checkAndFetchData = async () => {
       setLoading(true);
@@ -110,8 +111,20 @@ const handleLogout = async () => {
       }
       setLoading(false);
     };
-    checkAndFetchData();
-  }, []);
+
+    if (currentUser) {
+      checkAndFetchData();
+    }
+  }, [currentUser]);
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      router.push('/login');
+    } catch (error) {
+      console.error('Gagal logout:', error);
+    }
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -226,16 +239,27 @@ const handleLogout = async () => {
   const totalPerempuan = wargaList.filter((w) => w.gender === 'Perempuan').length;
   const totalTetap = wargaList.filter((w) => w.statusWarga === 'Tetap').length;
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-100">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+          <p className="text-sm font-semibold text-slate-600">Memeriksa Sesi Pengguna...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800">
       {/* Top Navbar */}
       <header className="bg-white border-b border-slate-200 px-6 py-4">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
           <div>
             <h1 className="text-xl font-bold text-slate-900">Sistem Pendataan Warga</h1>
             <p className="text-xs text-slate-500">Dashboard RT / RW Berbasis Next.js & Firebase</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <span
               className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
                 isFirebaseConfigured
@@ -250,6 +274,18 @@ const handleLogout = async () => {
               ></span>
               {isFirebaseConfigured ? 'Firebase Active' : 'Demo Mode (Mock)'}
             </span>
+
+            <div className="flex items-center gap-2 border-l pl-3 border-slate-200">
+              <span className="text-xs text-slate-600 font-medium hidden md:inline">
+                {currentUser?.email}
+              </span>
+              <button
+                onClick={handleLogout}
+                className="text-xs bg-rose-50 hover:bg-rose-100 text-rose-600 font-semibold px-3 py-1.5 rounded-lg border border-rose-200 transition"
+              >
+                Keluar
+              </button>
+            </div>
           </div>
         </div>
       </header>
